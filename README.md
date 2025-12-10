@@ -1,106 +1,201 @@
 ﻿﻿# dcinside-python3api
 
-##### dcinside python3 전용 비공식 API 입니다.
+##### dcinside python3 전용 비공식 API 입니다. (글 읽기 전용)
 
-# 사용법
-###### 사용전 requests, beautifulsoup4, lxml 꼭 설치해주세요 
-###### 프로젝트에 dcapi 폴더를 포함해준후 선언해줍니다.
+## 설치
+
+### Git 저장소에서 설치 (권장)
+
+```bash
+pip install git+https://github.com/YOUR_USERNAME/dcinside-python3-api.git
+```
+
+또는 개발 모드로 설치:
+```bash
+git clone https://github.com/YOUR_USERNAME/dcinside-python3-api.git
+cd dcinside-python3-api
+pip install -e .
+```
+
+### 로컬에서 설치
+
+```bash
+cd dcinside-python3-api
+pip install -e .
+```
+
+### 의존성 패키지
+
+다음 패키지들이 필요합니다 (설치 시 자동으로 설치됨):
+- requests
+- beautifulsoup4
+- lxml
+- selenium
+
+## API 기능
+
+### dcapi.read.title(gall_name, start_page, end_page)
+
+갤러리의 글 목록을 가져옵니다. **제목과 글 번호를 함께 반환**합니다.
+
+```python
+# 1페이지 글 목록 가져오기
+data = dcapi.read.title("dcbest", 1, 1)
+print(data)
+# -> {1: [{'title': '첫번째글제목', 'post_num': '1234567'}, {'title': '두번째글제목', 'post_num': '1234568'}, ...]}
+
+# 여러 페이지 가져오기 (1페이지부터 3페이지까지)
+data = dcapi.read.title("dcbest", 1, 3)
+print(data)
+# -> {1: [...], 2: [...], 3: [...]}
+
+# 첫 페이지 첫 번째 글의 정보
+first_post = data[1][0]
+print(first_post['title'])      # 제목
+print(first_post['post_num'])    # 글 번호
+```
+
+**반환 형식:**
+- `{페이지번호: [{'title': '제목', 'post_num': '글번호'}, ...]}`
+
+**주의:** 디시인사이드의 봇 차단으로 인해 일반 버전은 차단될 수 있습니다. Selenium 버전을 사용하는 것을 권장합니다.
+
+### dcapi.read.title_selenium (Selenium 버전)
+
+Selenium을 사용하여 봇 차단을 우회하는 버전입니다.
+
+```python
+from dcapi.read.title_selenium import main as selenium_title
+
+# 글 목록 가져오기
+posts = selenium_title("dcbest", 1, 3, headless=True)
+# headless=True: 브라우저 창을 띄우지 않음
+# headless=False: 브라우저 창을 띄움 (디버깅용)
+
+# 반환 형식은 일반 버전과 동일
+first_post = posts[1][0]
+print(first_post['title'])
+print(first_post['post_num'])
+```
+
+**필요한 것:**
+- Selenium 설치: `pip install selenium`
+- ChromeDriver (자동으로 다운로드되거나 수동 설치 필요)
+
+### dcapi.read.post(gall_name, post_num)
+
+게시글의 고유번호를 이용해 게시글의 상세 정보를 가져옵니다.
+
+```python
+data = dcapi.read.post("dcbest", "1234567")
+print(data)
+# -> {
+#   'post_num': '1234567',
+#   'title': '제목입니다',
+#   'writer': '닉네임',
+#   'time': '2021-11-06 10:00:01',
+#   'ip': '(125.244)',
+#   'view_num': '37559',
+#   'comment_num': '119',
+#   'up': '266',
+#   'down': '31',
+#   'gonic_up': '88',
+#   'content': '내용입니다',
+#   'images': ['https://...', 'https://...']  # 이미지 URL 목록
+# }
+
+# 원하는 정보만 사용
+print(data['title'])      # 제목
+print(data['content'])    # 내용
+print(data['images'])     # 이미지 URL 목록
+```
+
+**반환 데이터:**
+- `post_num`: 글 번호
+- `title`: 제목
+- `writer`: 작성자
+- `time`: 작성시간
+- `ip`: IP 주소
+- `view_num`: 조회수
+- `comment_num`: 댓글수
+- `up`: 추천수
+- `down`: 비추천수
+- `gonic_up`: 고닉 추천수
+- `content`: 글 내용
+- `images`: 이미지 URL 목록 (자동 추출)
+
+### dcapi.read.reply(gall_name, post_num)
+
+해당 글의 댓글들을 가져옵니다.
+
+```python
+data = dcapi.read.reply("dcbest", "1234567")
+print(data)
+# -> {
+#   0: ['작성자(IP)', '댓글 내용'],
+#   1: ['작성자(IP)', '댓글 내용'],
+#   ...
+# }
+
+# 첫 번째 댓글
+print(data[0])           # ['작성자', '내용']
+print(data[0][0])        # 작성자
+print(data[0][1])        # 댓글 내용
+```
+
+## 실제 사용 예제
+
+### save_dcbest_posts.py
+
+dcbest 갤러리에서 글을 가져와서 파일로 저장하는 스크립트입니다.
+
+```bash
+python save_dcbest_posts.py
+```
+
+**기능:**
+1. 글 목록 가져오기 (Selenium 사용)
+2. 각 글의 상세 정보 수집
+3. 썸네일 이미지 다운로드 (각 글당 1개)
+4. JSON, 텍스트, CSV 파일로 저장
+
+**저장되는 파일:**
+- `dcbest_posts_날짜시간.json`: 구조화된 데이터
+- `dcbest_posts_날짜시간.txt`: 읽기 쉬운 텍스트 형식
+- `dcbest_posts_날짜시간.csv`: 엑셀에서 열 수 있는 형식
+- `dcbest_thumbnails_날짜시간/`: 썸네일 이미지 폴더
+
+## 전체 사용 예제
+
 ```python
 import dcapi
+from dcapi.read.title_selenium import main as selenium_title
+
+# 1. 글 목록 가져오기 (Selenium 사용 권장)
+posts = selenium_title("dcbest", 1, 1, headless=True)
+
+# 2. 첫 번째 글의 상세 정보
+if posts and 1 in posts and posts[1]:
+    first_post = posts[1][0]
+    post_num = first_post['post_num']
+    
+    # 3. 상세 정보 가져오기
+    detail = dcapi.read.post("dcbest", post_num)
+    print(f"제목: {detail['title']}")
+    print(f"내용: {detail['content']}")
+    print(f"이미지: {len(detail['images'])}개")
+    
+    # 4. 댓글 가져오기
+    replies = dcapi.read.reply("dcbest", post_num)
+    print(f"댓글: {len(replies)}개")
 ```
 
-#### dcapi.write.post(gall_name,usid,password,title,content)
-```python
-#비로그인(유동) 상태에서 글을 작성할수있습니다.
-post_num = dcapi.write.post("programming","nick","password","subject","content")
-print(post_num)
-# -> 12345
-#성공할시 작성된 글의 글번호가 리턴됩니다.
-```
-#### dcapi.write.reply(gall_name,usid,password,title,content)
-```python
-#비로그인(유동) 상태에서 댓글을 달을수있습니다.
-result = dcapi.write.reply("programming","938896","nick","pass1234","test")
-print(result)
-# -> true
-#성공할시 true값이 리턴됩니다. 
-```
-#### dcapi.delete.post(gall_name,post_num,password)
-```python
-#비로그인(유동) 글을 삭제할수있습니다.
-result = dcapi.delete.post("programming","99999","1234a")
-print(result)
-# -> true
-#글삭제를 성공할시 true값이 리턴됩니다.
-```
-#### dcapi.delete.reply(gall_name,post_num,reply_num,password)
-```python
-#비로그인(유동) 댓글을 삭제할수있습니다.
-result = dcapi.delete.reply("programming","993951","3809972","1234")
-print(result)
-# -> true
-# 글삭제 성공시 true 실패시 false값이 리턴됩니다.
-```
-#### dcapi.read.post(gall_name,post_num)
-```python
-# 게시글의 고유번호를 이용해 게시글의 정보를 가져옵니다.
-data = dcapi.read.post("programming","930329")
-print(data)
-# -> {'post_num': '930329', 'title': '제목입니다', 'writer': '닉네임', 'time': '2018-11-16 21:28:46', 'ip': '(218.153)', 'view_num': '44', 'comment_num': '0', 'up': '1', 'down': '2', 'gonic_up': '0', 'content': '내용이고요 '}
-print(data['post_num'],data['title'],data['content']) # 게시글의 원하는 정보만 사용할수도 있습니다.
-# -> 930329 제목입니다 내용이고요
-```
-#### dcapi.read.reply(gall_name,post_num)
-```python
-# 해당글의 댓글들을 가져옵니다. (인덱스는 0번부터 시작합니다.)
-#data = dcapi.read.reply("programming","931271")
-print(data)
-# => {0: ['ㅇㅇ(121.134)', 'for문 두개로 해결하고 싶은거야?'], 1: ['ㅇㅇ(121.134)', 'list에 들어가는 순서는 어떻게 하고싶은거야?'], 2: ['ㅇㅇ(121.134)', 'm = len(mat)if m == 0:코드끝n = len(mat[0])if k > min(m,n):코드 끝우선 인풋 정합성 확인'], 3: ['ㅇㅇ(175.211)', 'list에 들어가는 순서 상관 없음. for문
-# while문 몇개를 쓰던 상관없음'], 4: ['ㅇㅇ(175.211)', '아니 저렇게 간단하게 끝난다고?!']}
-print(data[0]) 
-# 0번째 댓글의 정보들을 가져옵니다.
-# =>['ㅇㅇ(121.134)', 'for문 두개로 해결하고 싶은거야?']
-print(data[0][0])
-# => ㅇㅇ(121.134) 0번째의 작성자 정보만 가져옵니다.
-```
+## 주의사항
 
-#### dcapi.vote.up(gall_name,post_num)
-```python
-# 해당글을 추천합니다.
-res = dcapi.vote.up("programming","12345")
-print(res)
-# -> true
-# 성공시 true값을 반환합니다.
-```
-#### dcapi.vote.down(gall_name,post_num)
-```python
-# 해당글을 비추천합니다.
-res = dcapi.vote.up("programming","12345")
-print(res)
-# -> true
-# 성공시 true값을 반환합니다.
-```
-#### dcapi.vote.hit(gall_name,post_num)
-```python
-# 해당글을 힛추(힛갤추천)합니다.
-res = dcapi.vote.up("programming","12345")
-print(res)
-# -> true
-# 성공시 true값을 반환합니다. 
-```
+1. **봇 차단**: 디시인사이드가 봇 요청을 차단할 수 있습니다. Selenium 버전을 사용하는 것을 권장합니다.
+2. **요청 간격**: 너무 빠른 요청은 차단될 수 있으므로 적절한 간격을 두세요.
+3. **이미지 다운로드**: 이미지 다운로드 시 Referer 헤더가 필요할 수 있습니다.
 
-#### dcapi.read.title(gall_name,start_page,end_page)
-```python
-# 해당 갤러리 글들의 제목들을 가져옵니다.
-data = dcapi.read.title("programming")
-print(data)
-# -> {1: ['첫번째글제목'],['두번째글제목'], ... }
-# 페이지 구간을 적어줄수있습니다.
-data = dcapi.read.title("programming",1,5) # 1페이지부터 5페이지까지 제목들을 가져오기
-print(data)
-# -> {1: ['첫번째글제목'],['두번째글제목'], ... ,2 : ['첫번째글제목'],['두번째글제목'], ... }
-print(data[2]) # 다수의 페이지를 가져와 원하는 페이지들의 제목만 볼수도있습니다.
-# -> {2 : ['첫번째글제목'],['두번째글제목'], ... }
-print(data[2][10]) # 원하는 페이지에 원하는 인덱스의 제목만도 가져올수있습니다.
-# -> 10번째글의 제목입니다.
-```
+## 라이선스
+
+비공식 API입니다. 사용 시 주의하세요.

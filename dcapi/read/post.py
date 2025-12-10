@@ -1,6 +1,7 @@
 # -*- coding:utf-8 -*-
 import requests
 from bs4 import BeautifulSoup
+import re
 
 # 갤러리 영문이름과 원하는 읽고자 하는 글의 번호를 받습니다.
 # gall_name : 갤러리 영문이름
@@ -46,9 +47,81 @@ def pars_gonic_up(soup,post_num): # 고닉 추천수
     gonic_up = soup.find_all("span",{"id" : "recommend_view_up_fix_"+str(post_num)})
     return gonic_up[0].getText()
 
-def pars_content(soup): # 내용
+def pars_content(soup): # 내용 
+    # 여러 가능한 선택자 시도
     content = soup.find_all("div",{"style" : "overflow:hidden;"})
-    return content[0].getText()
+    if not content:
+        # 대체 선택자 시도
+        content = soup.find_all("div", class_=lambda x: x and 'writing_view_box' in str(x))
+    if not content:
+        content = soup.find_all("div", id=re.compile(r'viewContent'))
+    if not content:
+        # 가장 일반적인 내용 영역 찾기
+        content = soup.find_all("div", class_=lambda x: x and 'view_content' in str(x).lower())
+    
+    if content:
+        return content[0].getText()
+    else:
+        return "내용을 찾을 수 없습니다."
+
+def pars_images(soup): # 이미지 URL 추출
+    """글 내용에서 이미지 URL을 추출합니다."""
+    images = []
+    
+    # 여러 가능한 선택자로 내용 영역 찾기
+    content_divs = soup.find_all("div",{"style" : "overflow:hidden;"})
+    if not content_divs:
+        content_divs = soup.find_all("div", class_=lambda x: x and 'writing_view_box' in str(x))
+    if not content_divs:
+        content_divs = soup.find_all("div", id=re.compile(r'viewContent'))
+    if not content_divs:
+        content_divs = soup.find_all("div", class_=lambda x: x and 'view_content' in str(x).lower())
+    
+    if not content_divs:
+        return images
+    
+    # 내용 영역에서 이미지 찾기
+    content_div = content_divs[0]
+    
+    # img 태그 찾기
+    img_tags = content_div.find_all('img')
+    for img in img_tags:
+        src = img.get('src', '') or img.get('data-src', '') or img.get('data-original', '')
+        if src:
+            # 상대 경로를 절대 경로로 변환
+            if src.startswith('//'):
+                src = 'http:' + src
+            elif src.startswith('/'):
+                src = 'http://gall.dcinside.com' + src
+            elif not src.startswith('http'):
+                continue
+            
+            # 디시인사이드 이미지 서버 URL인지 확인
+            # 로딩 이미지나 아이콘은 제외
+            if ('dcinside.com' in src or 'image.dcinside.com' in src or 'img.dcinside.com' in src):
+                # 로딩 이미지, 아이콘, 배너 등 제외
+                if 'loading' not in src.lower() and 'icon' not in src.lower() and 'banner' not in src.lower():
+                    if src not in images:  # 중복 제거
+                        images.append(src)
+    
+    # background-image 스타일에서 이미지 URL 추출
+    style_tags = content_div.find_all(style=re.compile(r'background-image'))
+    for tag in style_tags:
+        style = tag.get('style', '')
+        match = re.search(r'url\(["\']?([^"\']+)["\']?\)', style)
+        if match:
+            img_url = match.group(1)
+            if img_url.startswith('//'):
+                img_url = 'http:' + img_url
+            elif img_url.startswith('/'):
+                img_url = 'http://gall.dcinside.com' + img_url
+            if 'dcinside.com' in img_url or 'image.dcinside.com' in img_url:
+                # 로딩 이미지, 아이콘, 배너 등 제외
+                if 'loading' not in img_url.lower() and 'icon' not in img_url.lower() and 'banner' not in img_url.lower():
+                    if img_url not in images:  # 중복 제거
+                        images.append(img_url)
+    
+    return images
 
 def pars(req,data): 
     html = req.text
@@ -63,6 +136,7 @@ def pars(req,data):
     data["down"] = pars_down(soup,data["post_num"])
     data["gonic_up"] = pars_gonic_up(soup,data["post_num"])
     data["content"] = pars_content(soup)
+    data["images"] = pars_images(soup)  # 이미지 URL 목록 추가
 
 def _req(gall_name,post_num,data):
     _headers = {

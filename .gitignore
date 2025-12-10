@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+*.whl
+
+# 개발 중 생성 파일
+dcinside_python3_api.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 테스트/데이터 파일
+dcbest_posts_*.json
+dcbest_posts_*.txt
+dcbest_posts_*.csv
+dcbest_images_*/
+dcbest_thumbnails_*/
+response.html
+
