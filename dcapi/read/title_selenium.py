@@ -60,7 +60,7 @@ def _get_driver(headless=True):
         return None
 
 
-def _req_selenium(gall_name, page, return_data, driver=None):
+def _req_selenium(gall_name, page, return_data, driver=None, is_minor_gallery=False):
     """Selenium을 사용하여 글 목록을 가져옵니다."""
     if not SELENIUM_AVAILABLE:
         return_data[page] = []
@@ -75,42 +75,40 @@ def _req_selenium(gall_name, page, return_data, driver=None):
         close_driver = True
     
     try:
-        # 일반 갤러리로 먼저 시도
-        mobile_url = f"http://m.dcinside.com/board/{gall_name}?page={page}"
-        driver.get(mobile_url)
-        time.sleep(2)  # 페이지 로딩 대기
-        
-        html = driver.page_source
-        
-        # 응답이 너무 짧으면 데스크톱 버전 시도
-        if len(html) < 1000:
-            base_url = "http://gall.dcinside.com/board/lists/"
-            desktop_url = f"{base_url}?id={gall_name}&page={page}"
-            driver.get(desktop_url)
-            time.sleep(3)  # 페이지 로딩 대기
+        # 마이너 갤러리인 경우 바로 마이너 갤러리 URL로 시도
+        if is_minor_gallery:
+            # 마이너 갤러리 모바일 버전 시도 (HTML 구조가 단순해서 파싱이 쉬움)
+            mobile_url = f"https://m.dcinside.com/mgallery/board/{gall_name}?page={page}"
+            driver.get(mobile_url)
+            time.sleep(2)  # 페이지 로딩 대기
             html = driver.page_source
             
-            # 여전히 짧으면 마이너 갤러리로 재시도
+            # 응답이 너무 짧으면 마이너 갤러리 데스크톱 버전 시도
             if len(html) < 1000:
-                print(f"일반 갤러리로 실패, 마이너 갤러리로 재시도: {gall_name}")
-                # 마이너 갤러리 모바일 버전 시도
-                minor_mobile_url = f"http://m.dcinside.com/mgallery/board/{gall_name}?page={page}"
-                driver.get(minor_mobile_url)
-                time.sleep(2)
+                base_url = "https://gall.dcinside.com/mgallery/board/lists/"
+                desktop_url = f"{base_url}?id={gall_name}&page={page}"
+                driver.get(desktop_url)
+                time.sleep(3)  # 페이지 로딩 대기
                 html = driver.page_source
-                
-                if len(html) < 1000:
-                    # 마이너 갤러리 데스크톱 버전 시도
-                    minor_base_url = "http://gall.dcinside.com/mgallery/board/lists/"
-                    minor_desktop_url = f"{minor_base_url}?id={gall_name}&page={page}"
-                    driver.get(minor_desktop_url)
-                    time.sleep(3)
-                    html = driver.page_source
+        else:
+            # 일반 갤러리 모바일 버전 시도 (HTML 구조가 단순해서 파싱이 쉬움)
+            mobile_url = f"https://m.dcinside.com/board/{gall_name}?page={page}"
+            driver.get(mobile_url)
+            time.sleep(2)  # 페이지 로딩 대기
+            html = driver.page_source
             
+            # 응답이 너무 짧으면 일반 갤러리 데스크톱 버전 시도
             if len(html) < 1000:
-                print(f"페이지 {page} 응답이 너무 짧습니다 ({len(html)}바이트).")
-                return_data[page] = []
-                return
+                base_url = "https://gall.dcinside.com/board/lists/"
+                desktop_url = f"{base_url}?id={gall_name}&page={page}"
+                driver.get(desktop_url)
+                time.sleep(3)  # 페이지 로딩 대기
+                html = driver.page_source
+        
+        if len(html) < 1000:
+            print(f"페이지 {page} 응답이 너무 짧습니다 ({len(html)}바이트).")
+            return_data[page] = []
+            return
         
         soup = BeautifulSoup(html, 'lxml')
         
@@ -210,7 +208,7 @@ def _req_selenium(gall_name, page, return_data, driver=None):
             driver.quit()
 
 
-def main(gall_name, start_page=1, end_page=1, headless=True, reuse_driver=True):
+def main(gall_name, start_page=1, end_page=1, headless=True, reuse_driver=True, is_minor_gallery=False):
     """
     Selenium을 사용하여 갤러리의 글 목록을 가져옵니다.
 
@@ -220,6 +218,7 @@ def main(gall_name, start_page=1, end_page=1, headless=True, reuse_driver=True):
         end_page: 마지막 페이지 (기본값: 1)
         headless: 헤드리스 모드 사용 여부 (기본값: True)
         reuse_driver: 드라이버 재사용 여부 (기본값: True)
+        is_minor_gallery: 마이너 갤러리 여부 (기본값: False)
 
     Returns:
         dict: {페이지번호: [{'title': '제목', 'post_num': '글번호'}, ...]}
@@ -245,7 +244,7 @@ def main(gall_name, start_page=1, end_page=1, headless=True, reuse_driver=True):
     
     try:
         for i in range(start, end):
-            _req_selenium(gall_name, i, return_data, driver)
+            _req_selenium(gall_name, i, return_data, driver, is_minor_gallery=is_minor_gallery)
             # 요청 간격을 두어 봇 차단 방지 (마지막 페이지 제외)
             if i < end - 1:
                 time.sleep(2)  # 2초 대기

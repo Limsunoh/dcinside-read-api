@@ -11,20 +11,36 @@ def pars_title(soup): # 제목
     # 일반 갤러리 형식
     title = soup.find_all("span",{"class":"title_subject"})
     if not title:
-        # 마이너 갤러리 형식 시도
+        # 마이너 갤러리 형식 시도 (정확한 클래스명)
         title = soup.find_all("span", class_=lambda x: x and 'title_subject' in str(x))
     if not title:
-        # 다른 가능한 선택자들 시도
+        # 마이너 갤러리 다른 형식 시도
+        title = soup.find_all("span", class_=lambda x: x and 'title' in str(x).lower() and 'subject' in str(x).lower())
+    if not title:
+        # h3 태그에서 제목 찾기
         title = soup.find_all("h3", class_=lambda x: x and 'title' in str(x).lower())
     if not title:
+        # div 태그에서 제목 찾기
         title = soup.find_all("div", class_=lambda x: x and 'title' in str(x).lower())
     if not title:
-        # 마지막 시도: 제목이 포함된 모든 요소
-        title = soup.find_all(["span", "h3", "div"], string=lambda text: text and len(text.strip()) > 0)
+        # id로 찾기
+        title = soup.find_all(id=re.compile(r'title', re.I))
+    if not title:
+        # data 속성으로 찾기
+        title = soup.find_all(attrs={"data-title": True})
+    if not title:
+        # 마지막 시도: 제목이 포함된 모든 요소 (너무 많은 결과를 피하기 위해 제한)
+        title = soup.find_all(["span", "h3", "div", "p"], string=lambda text: text and len(text.strip()) > 5)
+        # 가장 긴 텍스트를 제목으로 선택 (일반적으로 제목이 가장 길 수 있음)
+        if title:
+            title = [max(title, key=lambda x: len(x.getText().strip()))]
     
     if title:
         return title[0].getText().strip()
     else:
+        # 디버깅을 위해 HTML 일부 출력
+        print(f"[DEBUG] 제목을 찾을 수 없습니다. HTML 샘플:")
+        print(soup.prettify()[:1000])  # 처음 1000자만 출력
         raise IndexError("제목을 찾을 수 없습니다.")
 
 def pars_writer(soup): # 글쓴이 
@@ -157,13 +173,20 @@ def pars(req,data):
 def _req(gall_name,post_num,data, is_minor_gallery=False):
     _headers = {
         "User-Agent" : "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/69.0.3497.100 Safari/537.36",
+        "Referer": "http://gall.dcinside.com/",
     }
     # 마이너 갤러리인 경우 mgallery 경로 사용
+    # https 사용 (보안 및 일관성)
     if is_minor_gallery:
-        _url = "http://gall.dcinside.com/mgallery/board/view/?id="+gall_name+"&no="+str(post_num)+"&page=1"
+        _url = "https://gall.dcinside.com/mgallery/board/view/?id="+gall_name+"&no="+str(post_num)+"&page=1"
     else:
-        _url = "http://gall.dcinside.com/board/view/?id="+gall_name+"&no="+str(post_num)+"&page=1"
+        _url = "https://gall.dcinside.com/board/view/?id="+gall_name+"&no="+str(post_num)+"&page=1"
     req = requests.get(url=_url,headers=_headers)
+    
+    # 응답 상태 확인
+    if req.status_code != 200:
+        raise Exception(f"HTTP {req.status_code} 오류: {_url}")
+    
     pars(req,data)
 
 
