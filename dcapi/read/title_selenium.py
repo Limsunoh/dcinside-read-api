@@ -25,10 +25,12 @@ def _extract_post_num(href):
         return None
     # href 예시: /board/view/?id=dcbest&no=1234567&page=1
     # 또는 /board/dcbest/1234567
+    # 또는 /mgallery/board/view/?id=centristpolitics&no=1234567&page=1
+    # 또는 /mgallery/board/centristpolitics/1234567
     match = re.search(r'no=(\d+)', href)
     if match:
         return match.group(1)
-    # 모바일 형식: /board/gall_name/1234567
+    # 모바일 형식: /board/gall_name/1234567 또는 /mgallery/board/gall_name/1234567
     match = re.search(r'/(\d+)(?:\?|$)', href)
     if match:
         return match.group(1)
@@ -77,18 +79,18 @@ def _req_selenium(gall_name, page, return_data, driver=None, is_minor_gallery=Fa
     try:
         # 마이너 갤러리인 경우 바로 마이너 갤러리 URL로 시도
         if is_minor_gallery:
-            # 마이너 갤러리 모바일 버전 시도 (HTML 구조가 단순해서 파싱이 쉬움)
-            mobile_url = f"https://m.dcinside.com/mgallery/board/{gall_name}?page={page}"
-            driver.get(mobile_url)
-            time.sleep(2)  # 페이지 로딩 대기
+            # 마이너 갤러리는 데스크톱 버전부터 시도 (모바일 버전이 제대로 작동하지 않을 수 있음)
+            base_url = "https://gall.dcinside.com/mgallery/board/lists/"
+            desktop_url = f"{base_url}?id={gall_name}&page={page}"
+            driver.get(desktop_url)
+            time.sleep(3)  # 페이지 로딩 대기
             html = driver.page_source
             
-            # 응답이 너무 짧으면 마이너 갤러리 데스크톱 버전 시도
+            # 응답이 너무 짧으면 마이너 갤러리 모바일 버전 시도
             if len(html) < 1000:
-                base_url = "https://gall.dcinside.com/mgallery/board/lists/"
-                desktop_url = f"{base_url}?id={gall_name}&page={page}"
-                driver.get(desktop_url)
-                time.sleep(3)  # 페이지 로딩 대기
+                mobile_url = f"https://m.dcinside.com/mgallery/board/{gall_name}?page={page}"
+                driver.get(mobile_url)
+                time.sleep(2)  # 페이지 로딩 대기
                 html = driver.page_source
         else:
             # 일반 갤러리 모바일 버전 시도 (HTML 구조가 단순해서 파싱이 쉬움)
@@ -112,16 +114,27 @@ def _req_selenium(gall_name, page, return_data, driver=None, is_minor_gallery=Fa
         
         soup = BeautifulSoup(html, 'lxml')
         
-        # 모바일 버전 파싱 시도
-        list_title1 = soup.find_all('a', href=re.compile(r'/board/' + gall_name + r'/\d+'))
+        # 마이너 갤러리인 경우 마이너 갤러리 경로로 파싱 시도
+        if is_minor_gallery:
+            # 마이너 갤러리 모바일 버전 파싱
+            list_title1 = soup.find_all('a', href=re.compile(r'/mgallery/board/' + gall_name + r'/\d+'))
+            if not list_title1:
+                list_title1 = soup.find_all('a', href=re.compile(r'/mgallery/board/' + re.escape(gall_name) + r'/\d+'))
+        else:
+            # 일반 갤러리 모바일 버전 파싱
+            list_title1 = soup.find_all('a', href=re.compile(r'/board/' + gall_name + r'/\d+'))
         
-        # 데스크톱 버전 파싱 시도
+        # 데스크톱 버전 파싱 시도 (일반/마이너 공통)
         if not list_title1:
             list_title1 = soup.find_all('td', {'class': 'gall_tit ub-word'})
         if not list_title1:
             list_title1 = soup.find_all('td', class_=lambda x: x and 'gall_tit' in str(x))
         if not list_title1:
-            list_title1 = soup.find_all('a', href=re.compile(r'/board/view/'))
+            # 마이너 갤러리 view 경로도 포함
+            if is_minor_gallery:
+                list_title1 = soup.find_all('a', href=re.compile(r'/mgallery/board/view/'))
+            else:
+                list_title1 = soup.find_all('a', href=re.compile(r'/board/view/'))
         
         temp = []
         for item in list_title1:
@@ -141,13 +154,15 @@ def _req_selenium(gall_name, page, return_data, driver=None, is_minor_gallery=Fa
                     
                     # 추출 실패 시 다른 방법 시도
                     if not post_num:
-                        # 모바일 형식: /board/gall_name/post_num
-                        if '/board/' in href:
+                        # 모바일 형식: /board/gall_name/post_num 또는 /mgallery/board/gall_name/post_num
+                        if '/board/' in href or '/mgallery/board/' in href:
                             parts = href.split('/')
                             for i, part in enumerate(parts):
                                 if part == gall_name and i + 1 < len(parts):
                                     next_part = parts[i + 1]
-                                    # 숫자만 있는지 확인
+                                    # 숫자만 있는지 확인 (쿼리 파라미터 제거)
+                                    if '?' in next_part:
+                                        next_part = next_part.split('?')[0]
                                     if next_part.isdigit():
                                         post_num = next_part
                                         break
