@@ -1,27 +1,37 @@
-﻿﻿# dcinside-python3api
+﻿# dcinside-python3api
 
 ##### dcinside python3 전용 비공식 API 입니다. (글 읽기 전용)
 
 ## 설치
 
-### Git 저장소에서 설치 (권장)
+### 방법 1: 패키지로 설치 (권장)
 
-```bash
-pip install git+https://github.com/YOUR_USERNAME/dcinside-python3-api.git
-```
-
-또는 개발 모드로 설치:
-```bash
-git clone https://github.com/YOUR_USERNAME/dcinside-python3-api.git
-cd dcinside-python3-api
-pip install -e .
-```
-
-### 로컬에서 설치
+다른 프로젝트에서 import해서 사용하려면 패키지로 설치하세요:
 
 ```bash
 cd dcinside-python3-api
 pip install -e .
+```
+
+또는 일반 설치:
+```bash
+cd dcinside-python3-api
+pip install .
+```
+
+설치 후 어디서든 사용 가능:
+```python
+import dcapi
+from dcapi.read.title_selenium import main as selenium_title
+```
+
+### 방법 2: 직접 사용
+
+프로젝트 폴더에 직접 포함해서 사용:
+```python
+import sys
+sys.path.insert(0, '/path/to/dcinside-python3-api')
+import dcapi
 ```
 
 ### 의존성 패키지

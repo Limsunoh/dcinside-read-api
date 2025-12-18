@@ -75,7 +75,7 @@ def _req_selenium(gall_name, page, return_data, driver=None):
         close_driver = True
     
     try:
-        # 모바일 버전 먼저 시도
+        # 일반 갤러리로 먼저 시도
         mobile_url = f"http://m.dcinside.com/board/{gall_name}?page={page}"
         driver.get(mobile_url)
         time.sleep(2)  # 페이지 로딩 대기
@@ -89,6 +89,23 @@ def _req_selenium(gall_name, page, return_data, driver=None):
             driver.get(desktop_url)
             time.sleep(3)  # 페이지 로딩 대기
             html = driver.page_source
+            
+            # 여전히 짧으면 마이너 갤러리로 재시도
+            if len(html) < 1000:
+                print(f"일반 갤러리로 실패, 마이너 갤러리로 재시도: {gall_name}")
+                # 마이너 갤러리 모바일 버전 시도
+                minor_mobile_url = f"http://m.dcinside.com/mgallery/board/{gall_name}?page={page}"
+                driver.get(minor_mobile_url)
+                time.sleep(2)
+                html = driver.page_source
+                
+                if len(html) < 1000:
+                    # 마이너 갤러리 데스크톱 버전 시도
+                    minor_base_url = "http://gall.dcinside.com/mgallery/board/lists/"
+                    minor_desktop_url = f"{minor_base_url}?id={gall_name}&page={page}"
+                    driver.get(minor_desktop_url)
+                    time.sleep(3)
+                    html = driver.page_source
             
             if len(html) < 1000:
                 print(f"페이지 {page} 응답이 너무 짧습니다 ({len(html)}바이트).")

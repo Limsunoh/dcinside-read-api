@@ -138,20 +138,36 @@ def pars(req,data):
     data["content"] = pars_content(soup)
     data["images"] = pars_images(soup)  # 이미지 URL 목록 추가
 
-def _req(gall_name,post_num,data):
+def _req(gall_name,post_num,data, is_minor_gallery=False):
     _headers = {
         "User-Agent" : "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/69.0.3497.100 Safari/537.36",
     }
-    _url = "http://gall.dcinside.com/board/view/?id="+gall_name+"&no="+str(post_num)+"&page=1"
+    # 마이너 갤러리인 경우 mgallery 경로 사용
+    if is_minor_gallery:
+        _url = "http://gall.dcinside.com/mgallery/board/view/?id="+gall_name+"&no="+str(post_num)+"&page=1"
+    else:
+        _url = "http://gall.dcinside.com/board/view/?id="+gall_name+"&no="+str(post_num)+"&page=1"
     req = requests.get(url=_url,headers=_headers)
     pars(req,data)
 
 
 
-def main(gall_name,post_num):
+def main(gall_name,post_num, is_minor_gallery=False):
     data = { }
     data["post_num"] = post_num
-    _req(gall_name,post_num,data)
+    # 일반 갤러리로 먼저 시도
+    try:
+        _req(gall_name,post_num,data, is_minor_gallery=False)
+    except (IndexError, AttributeError, KeyError):
+        # 실패 시 마이너 갤러리로 재시도
+        if not is_minor_gallery:
+            try:
+                _req(gall_name,post_num,data, is_minor_gallery=True)
+            except Exception:
+                # 마이너 갤러리로도 실패하면 원래 예외 재발생
+                _req(gall_name,post_num,data, is_minor_gallery=False)
+        else:
+            raise
 
     return data
 
