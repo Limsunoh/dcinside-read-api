@@ -8,8 +8,24 @@ import re
 # post_num : 포스트 번호
 
 def pars_title(soup): # 제목 
+    # 일반 갤러리 형식
     title = soup.find_all("span",{"class":"title_subject"})
-    return title[0].getText()
+    if not title:
+        # 마이너 갤러리 형식 시도
+        title = soup.find_all("span", class_=lambda x: x and 'title_subject' in str(x))
+    if not title:
+        # 다른 가능한 선택자들 시도
+        title = soup.find_all("h3", class_=lambda x: x and 'title' in str(x).lower())
+    if not title:
+        title = soup.find_all("div", class_=lambda x: x and 'title' in str(x).lower())
+    if not title:
+        # 마지막 시도: 제목이 포함된 모든 요소
+        title = soup.find_all(["span", "h3", "div"], string=lambda text: text and len(text.strip()) > 0)
+    
+    if title:
+        return title[0].getText().strip()
+    else:
+        raise IndexError("제목을 찾을 수 없습니다.")
 
 def pars_writer(soup): # 글쓴이 
     writer = soup.find_all("span",{"class" : "nickname"})
