@@ -155,8 +155,10 @@ def pars_images(soup): # 이미지 URL 추출
     
     return images
 
-def pars(req,data): 
-    html = req.text
+def pars(req,data, html=None): 
+    # html이 제공되지 않으면 req.text 사용
+    if html is None:
+        html = req.text
     soup = BeautifulSoup(html, 'lxml')
     data["title"] = pars_title(soup)
     data["writer"] = pars_writer(soup)
@@ -173,7 +175,7 @@ def pars(req,data):
 def _req(gall_name,post_num,data, is_minor_gallery=False):
     _headers = {
         "User-Agent" : "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/69.0.3497.100 Safari/537.36",
-        "Referer": "http://gall.dcinside.com/",
+        "Referer": "https://gall.dcinside.com/",
     }
     # 마이너 갤러리인 경우 mgallery 경로 사용
     # https 사용 (보안 및 일관성)
@@ -181,13 +183,43 @@ def _req(gall_name,post_num,data, is_minor_gallery=False):
         _url = "https://gall.dcinside.com/mgallery/board/view/?id="+gall_name+"&no="+str(post_num)+"&page=1"
     else:
         _url = "https://gall.dcinside.com/board/view/?id="+gall_name+"&no="+str(post_num)+"&page=1"
-    req = requests.get(url=_url,headers=_headers)
+    req = requests.get(url=_url, headers=_headers, allow_redirects=True)
     
     # 응답 상태 확인
     if req.status_code != 200:
         raise Exception(f"HTTP {req.status_code} 오류: {_url}")
     
-    pars(req,data)
+    # JavaScript 리다이렉트 처리 (location.replace가 있는 경우)
+    html = req.text
+    if '<script' in html and 'location.replace' in html:
+        # location.replace URL 추출
+        import re
+        # 여러 패턴 시도: location.replace("url"), location.replace('url'), location.replace(url)
+        match = re.search(r'location\.replace\(["\']([^"\']+)["\']\)', html)
+        if not match:
+            match = re.search(r'location\.replace\(([^)]+)\)', html)
+        if match:
+            redirect_url = match.group(1).strip('"\'').strip()
+            # 상대 경로를 절대 경로로 변환
+            if redirect_url.startswith('/'):
+                redirect_url = 'https://gall.dcinside.com' + redirect_url
+            elif not redirect_url.startswith('http'):
+                redirect_url = 'https://gall.dcinside.com/' + redirect_url
+            
+            # 리다이렉트 URL에 page 파라미터가 없으면 추가
+            if 'page=' not in redirect_url:
+                if '?' in redirect_url:
+                    redirect_url += '&page=1'
+                else:
+                    redirect_url += '?page=1'
+            
+            # 리다이렉트 URL로 다시 요청
+            req = requests.get(url=redirect_url, headers=_headers, allow_redirects=True)
+            if req.status_code != 200:
+                raise Exception(f"HTTP {req.status_code} 오류 (리다이렉트 후): {redirect_url}")
+    
+    # 최종 HTML로 파싱
+    pars(req, data)
 
 
 
